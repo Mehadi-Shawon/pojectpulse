@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
-const ADMIN_EMAIL = "admin@projectpulse.com";
-const ADMIN_PASSWORD = "admin123";
+const ADMIN_EMAIL = "write.shawon@gmail.com";
+const ADMIN_PASSWORD = "A123456a";
 
 const COLORS = ["#e8673a","#3ecf7a","#4fa8e8","#a78bfa","#f5a623","#e85577","#06b6d4","#f0c040"];
 
