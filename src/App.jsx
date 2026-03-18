@@ -1,39 +1,13 @@
 import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
 
 const ADMIN_EMAIL = "write.shawon@gmail.com";
 const ADMIN_PASSWORD = "A123456a";
-
 const COLORS = ["#e8673a","#3ecf7a","#4fa8e8","#a78bfa","#f5a623","#e85577","#06b6d4","#f0c040"];
 
-const initialProjects = [
-  {
-    id:"p1", name:"Website Redesign", client:"Acme Corp",
-    desc:"Full redesign and development — modern, fast, conversion-focused.",
-    status:"active", color:"#e8673a", start:"2025-03-01", deadline:"2025-04-30", email:"contact@acmecorp.com",
-    updates:[
-      {id:"u1",title:"Project Kickoff",desc:"Held kickoff meeting. Gathered requirements, branding assets, and defined the sitemap and user flows.",status:"completed",date:"2025-03-03",tags:["Planning"],link:""},
-      {id:"u2",title:"Wireframes & Design System",desc:"Completed wireframes for all 8 pages. Built the component library. Awaiting client feedback on hero concepts.",status:"in-progress",date:"2025-03-14",tags:["Design","UI/UX"],link:"https://figma.com"},
-      {id:"u3",title:"Frontend Development",desc:"Dev starts once designs are approved. Using Next.js. Estimated 3 weeks for full build.",status:"planned",date:"2025-03-28",tags:["Dev","Next.js"],link:""}
-    ]
-  },
-  {
-    id:"p2", name:"Mobile App MVP", client:"StartupXYZ",
-    desc:"React Native app for iOS & Android. Auth, dashboard, notifications.",
-    status:"active", color:"#3ecf7a", start:"2025-02-15", deadline:"2025-05-15", email:"hello@startupxyz.io",
-    updates:[
-      {id:"u4",title:"Architecture Planning",desc:"Finalized tech stack and repo structure. CI/CD pipeline fully set up.",status:"completed",date:"2025-02-18",tags:["Backend","DevOps"],link:""},
-      {id:"u5",title:"Auth & Onboarding Screens",desc:"Login, sign-up, and onboarding flow complete on both platforms. Pending QA review.",status:"in-progress",date:"2025-03-10",tags:["React Native"],link:""}
-    ]
-  }
-];
-
-function uid(){ return "id"+Date.now()+Math.random().toString(36).slice(2,5); }
+function uid(){ return crypto.randomUUID ? crypto.randomUUID() : "id"+Date.now()+Math.random().toString(36).slice(2,9); }
 function today(){ return new Date().toISOString().slice(0,10); }
-function fmtDate(s){
-  if(!s) return "—";
-  const d=new Date(s+"T00:00:00");
-  return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-}
+function fmtDate(s){ if(!s) return "—"; const d=new Date(s+"T00:00:00"); return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); }
 function slugify(s){ return s.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,""); }
 function projStatusLabel(s){ return {active:"Active","on-hold":"On Hold",completed:"Completed"}[s]||s; }
 function updStatusLabel(s){ return {completed:"Completed","in-progress":"In Progress",planned:"Planned"}[s]||s; }
@@ -110,7 +84,7 @@ function StyleInjector(){
   useEffect(()=>{
     if(document.getElementById("pp-styles")) return;
     const s=document.createElement("style");
-    s.id="pp-styles";s.textContent=STYLES;
+    s.id="pp-styles"; s.textContent=STYLES;
     document.head.appendChild(s);
   },[]);
   return null;
@@ -154,7 +128,7 @@ const TEXTAREA={...INP,minHeight:90,resize:"vertical"};
 function Modal({open,onClose,title,children,maxWidth=500}){
   useEffect(()=>{
     document.body.style.overflow=open?"hidden":"";
-    return()=>{document.body.style.overflow="";};
+    return()=>{ document.body.style.overflow=""; };
   },[open]);
   if(!open) return null;
   return(
@@ -203,17 +177,23 @@ function InfoRow({label,value,icon,last}){
   );
 }
 
-/* ════ CLIENT PUBLIC VIEW (no login needed) ════ */
+function LoadingScreen({message="Loading..."}){
+  return(
+    <div style={{minHeight:"100vh",background:"#0c0c0e",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+      <div style={{width:32,height:32,border:"3px solid #1e1e21",borderTopColor:"#e8673a",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <div style={{fontSize:"0.84rem",color:"#6b6b72"}}>{message}</div>
+    </div>
+  );
+}
+
+/* ── CLIENT PUBLIC VIEW ── */
 function ClientPublicView({project}){
   return(
     <div style={{minHeight:"100vh",background:"#0c0c0e",color:"#f0efe8",animation:"fadeIn 0.4s ease"}}>
-      {/* Minimal header */}
       <div style={{padding:"16px 24px",borderBottom:"1px solid #1e1e21",background:"#111113",display:"flex",alignItems:"center",gap:10}}>
         <div style={{width:28,height:28,background:"linear-gradient(135deg,#e8673a,#c4512a)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0}}>{Icon.pulse}</div>
         <div style={{fontWeight:800,fontSize:"0.95rem",letterSpacing:"-0.03em"}}>Project<span style={{color:"#e8673a"}}>Pulse</span></div>
       </div>
-
-      {/* Hero */}
       <div style={{background:"#111113",borderBottom:"1px solid #1e1e21",padding:"44px 24px 34px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:-100,right:-60,width:340,height:340,borderRadius:"50%",background:`radial-gradient(circle,${project.color}18,transparent 68%)`,pointerEvents:"none"}}/>
         <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(255,255,255,0.014) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.014) 1px,transparent 1px)",backgroundSize:"36px 36px",pointerEvents:"none"}}/>
@@ -234,8 +214,6 @@ function ClientPublicView({project}){
           </div>
         </div>
       </div>
-
-      {/* Timeline */}
       <div style={{maxWidth:640,margin:"0 auto",padding:"30px 20px 60px"}}>
         <div style={{fontWeight:700,fontSize:"0.82rem",marginBottom:20,display:"flex",alignItems:"center",gap:10,color:"#6b6b72",letterSpacing:"0.04em",textTransform:"uppercase"}}>
           {Icon.activity} Project Updates
@@ -262,14 +240,8 @@ function ClientPublicView({project}){
                     <div style={{fontSize:"0.83rem",color:"#9b9ba3",lineHeight:1.65}}>{u.desc}</div>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:11,alignItems:"center"}}>
                       <span style={{fontSize:"0.7rem",color:"#4a4a55",marginRight:"auto",display:"flex",alignItems:"center",gap:4}}>{Icon.calendar} {fmtDate(u.date)}</span>
-                      {u.tags.map(t=>(
-                        <span key={t} style={{fontSize:"0.65rem",padding:"2px 7px",background:"#1a1a1d",border:"1px solid #1e1e21",borderRadius:4,color:"#6b6b72",display:"flex",alignItems:"center",gap:3}}>{Icon.tag} {t}</span>
-                      ))}
-                      {u.link&&(
-                        <a href={u.link} target="_blank" rel="noreferrer" style={{fontSize:"0.72rem",color:"#e8673a",textDecoration:"none",padding:"2px 8px",background:"rgba(232,103,58,0.07)",border:"1px solid rgba(232,103,58,0.18)",borderRadius:5,display:"flex",alignItems:"center",gap:4}}>
-                          {Icon.externalLink} View File
-                        </a>
-                      )}
+                      {u.tags.map(t=><span key={t} style={{fontSize:"0.65rem",padding:"2px 7px",background:"#1a1a1d",border:"1px solid #1e1e21",borderRadius:4,color:"#6b6b72",display:"flex",alignItems:"center",gap:3}}>{Icon.tag} {t}</span>)}
+                      {u.link&&<a href={u.link} target="_blank" rel="noreferrer" style={{fontSize:"0.72rem",color:"#e8673a",textDecoration:"none",padding:"2px 8px",background:"rgba(232,103,58,0.07)",border:"1px solid rgba(232,103,58,0.18)",borderRadius:5,display:"flex",alignItems:"center",gap:4}}>{Icon.externalLink} View File</a>}
                     </div>
                   </div>
                 </div>
@@ -282,7 +254,7 @@ function ClientPublicView({project}){
   );
 }
 
-/* ════ LOGIN ════ */
+/* ── LOGIN ── */
 function LoginPage({onLogin}){
   const [email,setEmail]=useState("");
   const [pw,setPw]=useState("");
@@ -290,16 +262,13 @@ function LoginPage({onLogin}){
   const [loading,setLoading]=useState(false);
   const [showPw,setShowPw]=useState(false);
   const [focused,setFocused]=useState("");
-
   function handle(e){
-    e.preventDefault();
-    setLoading(true);setErr("");
+    e.preventDefault(); setLoading(true); setErr("");
     setTimeout(()=>{
-      if(email.trim()===ADMIN_EMAIL&&pw===ADMIN_PASSWORD){onLogin();}
-      else{setErr("Incorrect email or password. Please try again.");setLoading(false);}
+      if(email.trim()===ADMIN_EMAIL&&pw===ADMIN_PASSWORD){ onLogin(); }
+      else{ setErr("Incorrect email or password."); setLoading(false); }
     },800);
   }
-
   return(
     <div style={{minHeight:"100vh",background:"#0c0c0e",display:"flex",alignItems:"center",justifyContent:"center",padding:20,position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-160,left:-100,width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,103,58,0.09),transparent 65%)",pointerEvents:"none"}}/>
@@ -311,10 +280,10 @@ function LoginPage({onLogin}){
             <span style={{color:"#fff",display:"flex"}}>{Icon.pulse}</span>
           </div>
           <div style={{fontWeight:800,fontSize:"1.55rem",letterSpacing:"-0.04em"}}>Project<span style={{color:"#e8673a"}}>Pulse</span></div>
-          <div style={{fontSize:"0.78rem",color:"#4a4a55",marginTop:6,letterSpacing:"0.02em"}}>Admin Portal</div>
+          <div style={{fontSize:"0.78rem",color:"#4a4a55",marginTop:6}}>Admin Portal</div>
         </div>
         <div style={{background:"#111113",border:"1px solid #222225",borderRadius:20,padding:30,boxShadow:"0 24px 72px rgba(0,0,0,0.6)"}}>
-          <div style={{fontWeight:700,fontSize:"1.05rem",marginBottom:4,letterSpacing:"-0.01em"}}>Sign in to your account</div>
+          <div style={{fontWeight:700,fontSize:"1.05rem",marginBottom:4}}>Sign in to your account</div>
           <div style={{fontSize:"0.79rem",color:"#6b6b72",marginBottom:24}}>Authorized personnel only</div>
           <form onSubmit={handle}>
             <Field label="Email">
@@ -330,12 +299,8 @@ function LoginPage({onLogin}){
                 <button type="button" onClick={()=>setShowPw(s=>!s)} style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#4a4a55",cursor:"pointer",display:"flex",padding:3}}>{showPw?Icon.eyeOff:Icon.eye}</button>
               </div>
             </Field>
-            {err&&(
-              <div style={{background:"rgba(232,85,85,0.08)",border:"1px solid rgba(232,85,85,0.2)",borderRadius:9,padding:"10px 13px",fontSize:"0.8rem",color:"#e85555",marginBottom:14,display:"flex",alignItems:"center",gap:7,animation:"fadeUp 0.2s ease"}}>
-                {Icon.warning} {err}
-              </div>
-            )}
-            <button type="submit" disabled={loading} style={{width:"100%",padding:"12px",background:loading?"#252528":"linear-gradient(135deg,#e8673a,#c4512a)",color:loading?"#6b6b72":"#fff",border:"none",borderRadius:10,fontSize:"0.88rem",fontWeight:700,cursor:loading?"not-allowed":"pointer",transition:"all 0.2s",marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:9,letterSpacing:"0.02em"}}>
+            {err&&<div style={{background:"rgba(232,85,85,0.08)",border:"1px solid rgba(232,85,85,0.2)",borderRadius:9,padding:"10px 13px",fontSize:"0.8rem",color:"#e85555",marginBottom:14,display:"flex",alignItems:"center",gap:7,animation:"fadeUp 0.2s ease"}}>{Icon.warning} {err}</div>}
+            <button type="submit" disabled={loading} style={{width:"100%",padding:"12px",background:loading?"#252528":"linear-gradient(135deg,#e8673a,#c4512a)",color:loading?"#6b6b72":"#fff",border:"none",borderRadius:10,fontSize:"0.88rem",fontWeight:700,cursor:loading?"not-allowed":"pointer",transition:"all 0.2s",marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:9}}>
               {loading?(<><span style={{width:15,height:15,border:"2px solid rgba(255,255,255,0.25)",borderTopColor:"#fff",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}}/> Signing in...</>):<>Sign In {Icon.arrowRight}</>}
             </button>
           </form>
@@ -345,25 +310,72 @@ function LoginPage({onLogin}){
   );
 }
 
-/* ════ MAIN APP ════ */
+/* ── ROOT ── */
 export default function App(){
-  const [projects,setProjects]=useState(initialProjects);
+  const [projects,setProjects]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState(null);
 
-  /* ── Check URL for public client view ── */
+  async function loadAll(){
+    try {
+      const { data:pRows, error:pErr } = await supabase.from("projects").select("*").order("created_at",{ascending:true});
+      if(pErr) throw pErr;
+      const { data:uRows, error:uErr } = await supabase.from("updates").select("*").order("created_at",{ascending:true});
+      if(uErr) throw uErr;
+      const mapped=(pRows||[]).map(p=>({
+        id:p.id,
+        name:p.name,
+        client:p.client,
+        desc:p.description||"",
+        status:p.status,
+        color:p.color,
+        start:p.start_date||"",
+        deadline:p.deadline||"",
+        email:p.email||"",
+        updates:(uRows||[]).filter(u=>u.project_id===p.id).map(u=>({
+          id:u.id,
+          title:u.title,
+          desc:u.description||"",
+          status:u.status,
+          date:u.date||"",
+          link:u.link||"",
+          tags:u.tags||[],
+        }))
+      }));
+      setProjects(mapped);
+    } catch(e) {
+      console.error("Load error:",e);
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(()=>{ loadAll(); },[]);
+
   const params=new URLSearchParams(window.location.search);
   const isClientView=params.get("view")==="client";
   const clientProjectId=params.get("project");
-  const publicProject=isClientView ? projects.find(p=>p.id===clientProjectId) : null;
 
-  /* If URL is a public client link → render client view directly, no login */
-  if(isClientView && publicProject){
-    return(<><StyleInjector/><ClientPublicView project={publicProject}/></>);
-  }
-  if(isClientView && !publicProject){
+  if(loading) return(<><StyleInjector/><LoadingScreen message="Loading projects..."/></>);
+
+  if(error) return(
+    <><StyleInjector/>
+    <div style={{minHeight:"100vh",background:"#0c0c0e",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:"#e85555",padding:20}}>
+      <div style={{fontWeight:700,fontSize:"1rem"}}>Failed to connect to database</div>
+      <div style={{fontSize:"0.8rem",color:"#6b6b72",textAlign:"center",maxWidth:400}}>{error}</div>
+      <Btn onClick={()=>{ setError(null); setLoading(true); loadAll(); }}>Retry</Btn>
+    </div>
+    </>
+  );
+
+  if(isClientView){
+    const pub=projects.find(p=>p.id===clientProjectId);
+    if(pub) return(<><StyleInjector/><ClientPublicView project={pub}/></>);
     return(
       <><StyleInjector/>
       <div style={{minHeight:"100vh",background:"#0c0c0e",display:"flex",alignItems:"center",justifyContent:"center",color:"#6b6b72",flexDirection:"column",gap:12}}>
-        <div style={{opacity:0.3}}>{Icon.folder}</div>
+        <div style={{opacity:0.3,display:"flex"}}>{Icon.folder}</div>
         <div style={{fontWeight:600}}>Project not found</div>
         <div style={{fontSize:"0.8rem"}}>This link may be invalid or the project was deleted.</div>
       </div>
@@ -371,16 +383,17 @@ export default function App(){
     );
   }
 
-  return <AdminApp projects={projects} setProjects={setProjects}/>;
+  return <AdminApp projects={projects} setProjects={setProjects} reloadAll={loadAll}/>;
 }
 
-/* ════ ADMIN APP (login protected) ════ */
-function AdminApp({projects,setProjects}){
+/* ── ADMIN APP ── */
+function AdminApp({projects,setProjects,reloadAll}){
   const [loggedIn,setLoggedIn]=useState(false);
   const [activeProjectId,setActiveProjectId]=useState(null);
   const [page,setPage]=useState("dashboard");
   const [toast,setToast]=useState("");
   const [sidebarOpen,setSidebarOpen]=useState(false);
+  const [saving,setSaving]=useState(false);
   const [projModal,setProjModal]=useState(false);
   const [editProjId,setEditProjId]=useState(null);
   const [pm,setPm]=useState({name:"",client:"",desc:"",status:"active",color:"#e8673a",start:today(),deadline:"",email:""});
@@ -391,12 +404,13 @@ function AdminApp({projects,setProjects}){
   const [confirm,setConfirm]=useState(null);
   const [copied,setCopied]=useState(false);
 
-  function showToast(msg){setToast(msg);setTimeout(()=>setToast(""),2600);}
-  function getP(id){return projects.find(p=>p.id===id);}
-  function logout(){setLoggedIn(false);setPage("dashboard");setActiveProjectId(null);}
-  function goProject(id){setActiveProjectId(id);setPage("project");setSidebarOpen(false);}
-  function goDashboard(){setPage("dashboard");setActiveProjectId(null);setSidebarOpen(false);}
+  function showToast(msg){ setToast(msg); setTimeout(()=>setToast(""),2800); }
+  function getP(id){ return projects.find(p=>p.id===id); }
+  function logout(){ setLoggedIn(false); setPage("dashboard"); setActiveProjectId(null); }
+  function goProject(id){ setActiveProjectId(id); setPage("project"); setSidebarOpen(false); }
+  function goDashboard(){ setPage("dashboard"); setActiveProjectId(null); setSidebarOpen(false); }
 
+  /* PROJECT CRUD */
   function openNewProject(){
     setEditProjId(null);
     setPm({name:"",client:"",desc:"",status:"active",color:"#e8673a",start:today(),deadline:"",email:""});
@@ -408,46 +422,107 @@ function AdminApp({projects,setProjects}){
     setPm({name:p.name,client:p.client,desc:p.desc,status:p.status,color:p.color,start:p.start||"",deadline:p.deadline||"",email:p.email||""});
     setProjModal(true);
   }
-  function saveProject(){
-    if(!pm.name.trim()||!pm.client.trim()){showToast("Name and client required.");return;}
-    if(editProjId){
-      setProjects(ps=>ps.map(p=>p.id===editProjId?{...p,...pm}:p));
-      showToast("Project updated!");
-    } else {
-      setProjects(ps=>[...ps,{id:uid(),updates:[],...pm}]);
-      showToast("Project created!");
+  async function saveProject(){
+    if(!pm.name.trim()||!pm.client.trim()){ showToast("Name and client required."); return; }
+    setSaving(true);
+    try {
+      const row={
+        name:pm.name.trim(),
+        client:pm.client.trim(),
+        description:pm.desc.trim()||null,
+        status:pm.status,
+        color:pm.color,
+        start_date:pm.start||null,
+        deadline:pm.deadline||null,
+        email:pm.email.trim()||null,
+      };
+      if(editProjId){
+        const { error } = await supabase.from("projects").update(row).eq("id",editProjId);
+        if(error) throw error;
+        showToast("Project updated!");
+      } else {
+        const { error } = await supabase.from("projects").insert([{id:uid(),...row}]);
+        if(error) throw error;
+        showToast("Project created!");
+      }
+      await reloadAll();
+      setProjModal(false);
+    } catch(e){
+      console.error("Save project error:",e);
+      showToast("Error: "+e.message);
+    } finally {
+      setSaving(false);
     }
-    setProjModal(false);
   }
-  function deleteProject(id){
-    setProjects(ps=>ps.filter(p=>p.id!==id));
-    goDashboard();showToast("Project deleted.");setConfirm(null);
+  async function deleteProject(id){
+    try {
+      const { error } = await supabase.from("projects").delete().eq("id",id);
+      if(error) throw error;
+      await reloadAll();
+      goDashboard();
+      showToast("Project deleted.");
+    } catch(e){
+      showToast("Error: "+e.message);
+    }
+    setConfirm(null);
   }
+
+  /* UPDATE CRUD */
   function openAddUpdate(){
     setEditUpdId(null);
     setUm({title:"",desc:"",status:"completed",date:today(),link:"",tags:[]});
-    setTagInput("");setUpdModal(true);
+    setTagInput(""); setUpdModal(true);
   }
   function openEditUpdate(uid_){
     const p=getP(activeProjectId);
     const u=p.updates.find(x=>x.id===uid_);
     setEditUpdId(uid_);
     setUm({title:u.title,desc:u.desc,status:u.status,date:u.date,link:u.link||"",tags:[...u.tags]});
-    setTagInput("");setUpdModal(true);
+    setTagInput(""); setUpdModal(true);
   }
-  function saveUpdate(){
-    if(!um.title.trim()||!um.desc.trim()){showToast("Title and description required.");return;}
-    setProjects(ps=>ps.map(p=>{
-      if(p.id!==activeProjectId) return p;
-      if(editUpdId) return{...p,updates:p.updates.map(u=>u.id===editUpdId?{...u,...um}:u)};
-      return{...p,updates:[...p.updates,{id:uid(),...um}]};
-    }));
-    showToast(editUpdId?"Update saved!":"Update posted!");setUpdModal(false);
+  async function saveUpdate(){
+    if(!um.title.trim()||!um.desc.trim()){ showToast("Title and description required."); return; }
+    setSaving(true);
+    try {
+      const row={
+        title:um.title.trim(),
+        description:um.desc.trim(),
+        status:um.status,
+        date:um.date||null,
+        link:um.link.trim()||null,
+        tags:um.tags,
+        project_id:activeProjectId,
+      };
+      if(editUpdId){
+        const { error } = await supabase.from("updates").update(row).eq("id",editUpdId);
+        if(error) throw error;
+        showToast("Update saved!");
+      } else {
+        const { error } = await supabase.from("updates").insert([{id:uid(),...row}]);
+        if(error) throw error;
+        showToast("Update posted!");
+      }
+      await reloadAll();
+      setUpdModal(false);
+    } catch(e){
+      console.error("Save update error:",e);
+      showToast("Error: "+e.message);
+    } finally {
+      setSaving(false);
+    }
   }
-  function deleteUpdate(uid_){
-    setProjects(ps=>ps.map(p=>p.id!==activeProjectId?p:{...p,updates:p.updates.filter(u=>u.id!==uid_)}));
-    showToast("Update deleted.");setConfirm(null);
+  async function deleteUpdate(uid_){
+    try {
+      const { error } = await supabase.from("updates").delete().eq("id",uid_);
+      if(error) throw error;
+      await reloadAll();
+      showToast("Update deleted.");
+    } catch(e){
+      showToast("Error: "+e.message);
+    }
+    setConfirm(null);
   }
+
   function addTag(e){
     if(e.key==="Enter"&&tagInput.trim()){
       e.preventDefault();
@@ -456,16 +531,14 @@ function AdminApp({projects,setProjects}){
       setTagInput("");
     }
   }
-  function removeTag(i){setUm(u=>({...u,tags:u.tags.filter((_,idx)=>idx!==i)}));}
+  function removeTag(i){ setUm(u=>({...u,tags:u.tags.filter((_,idx)=>idx!==i)})); }
 
-  /* Copy share link — builds ?view=client&project=ID URL */
   function copyShareLink(){
     const p=getP(activeProjectId);
     const base=window.location.href.split("?")[0];
     const shareUrl=`${base}?view=client&project=${p.id}`;
     navigator.clipboard.writeText(shareUrl).catch(()=>{});
-    setCopied(true);
-    showToast("Client link copied!");
+    setCopied(true); showToast("Client link copied!");
     setTimeout(()=>setCopied(false),2200);
   }
 
@@ -482,7 +555,7 @@ function AdminApp({projects,setProjects}){
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
         <div style={{padding:"20px 16px 16px",borderBottom:"1px solid #1e1e21"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:34,height:34,background:"linear-gradient(135deg,#e8673a,#c4512a)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0,boxShadow:"0 4px 14px rgba(232,103,58,0.3)"}}>{Icon.pulse}</div>
+            <div style={{width:34,height:34,background:"linear-gradient(135deg,#e8673a,#c4512a)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0}}>{Icon.pulse}</div>
             <div>
               <div style={{fontWeight:800,fontSize:"1rem",letterSpacing:"-0.03em"}}>Project<span style={{color:"#e8673a"}}>Pulse</span></div>
               <div style={{fontSize:"0.63rem",color:"#4a4a55",marginTop:1,letterSpacing:"0.04em",textTransform:"uppercase"}}>Admin Panel</div>
@@ -534,7 +607,6 @@ function AdminApp({projects,setProjects}){
             </div>
           </div>
         )}
-
         <div style={{flex:1,overflowX:"hidden",minWidth:0}}>
 
           {/* DASHBOARD */}
@@ -564,9 +636,9 @@ function AdminApp({projects,setProjects}){
                   <div style={{marginBottom:26}}>
                     <div style={{fontWeight:700,fontSize:"0.82rem",marginBottom:12,color:"#6b6b72",letterSpacing:"0.04em",textTransform:"uppercase",display:"flex",alignItems:"center",gap:7}}>{Icon.activity} Recent Activity</div>
                     <div style={{background:"#111113",border:"1px solid #1e1e21",borderRadius:14,overflow:"hidden"}}>
-                      {projects.flatMap(p=>p.updates.map(u=>({...u,pName:p.name,pColor:p.color,pId:p.id}))).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map((u,i,arr)=>(
+                      {projects.flatMap(p=>p.updates.map(u=>({...u,pName:p.name,pColor:p.color,pId:p.id}))).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,5).map((u,i,arr)=>(
                         <div key={u.id} onClick={()=>goProject(u.pId)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderBottom:i<arr.length-1?"1px solid #161618":"none",cursor:"pointer",transition:"background 0.15s",animation:`slideInRight 0.35s ease ${i*0.05}s both`}}>
-                          <div style={{width:8,height:8,borderRadius:"50%",background:u.pColor,flexShrink:0,boxShadow:`0 0 8px ${u.pColor}66`}}/>
+                          <div style={{width:8,height:8,borderRadius:"50%",background:u.pColor,flexShrink:0}}/>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:"0.84rem",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.title}</div>
                             <div style={{fontSize:"0.71rem",color:"#6b6b72",marginTop:2,display:"flex",alignItems:"center",gap:5}}>{Icon.folder}<span>{u.pName}</span><span style={{color:"#3a3a42"}}>·</span>{Icon.calendar}<span>{fmtDate(u.date)}</span></div>
@@ -592,7 +664,7 @@ function AdminApp({projects,setProjects}){
                         <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${p.color},${p.color}55)`,borderRadius:"15px 15px 0 0"}}/>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10}}>
                           <div>
-                            <div style={{fontWeight:700,fontSize:"0.95rem",letterSpacing:"-0.01em"}}>{p.name}</div>
+                            <div style={{fontWeight:700,fontSize:"0.95rem"}}>{p.name}</div>
                             <div style={{fontSize:"0.74rem",color:"#6b6b72",marginTop:3,display:"flex",alignItems:"center",gap:4}}>{Icon.user} {p.client}</div>
                           </div>
                           <Badge status={p.status==="active"?"active":p.status==="on-hold"?"on-hold":"completed-proj"} label={projStatusLabel(p.status)}/>
@@ -653,9 +725,7 @@ function AdminApp({projects,setProjects}){
                       )}
                     </div>
                   </div>
-
                   <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                    {/* Share link panel */}
                     <div style={{background:"rgba(232,103,58,0.05)",border:"1px solid rgba(232,103,58,0.15)",borderRadius:14,padding:16}}>
                       <div style={{fontSize:"0.72rem",fontWeight:700,color:"#e8673a",marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase",display:"flex",alignItems:"center",gap:6}}>{Icon.link} Client Share Link</div>
                       <div style={{fontSize:"0.71rem",color:"#6b6b72",marginBottom:10,lineHeight:1.5}}>Share this link with your client. They can view updates without logging in.</div>
@@ -671,7 +741,6 @@ function AdminApp({projects,setProjects}){
                         {Icon.eye} Preview Client View
                       </button>
                     </div>
-
                     <div style={{background:"#111113",border:"1px solid #1e1e21",borderRadius:14,padding:16}}>
                       <div style={{fontSize:"0.69rem",letterSpacing:"0.08em",textTransform:"uppercase",color:"#3a3a42",marginBottom:12,fontWeight:700}}>Project Info</div>
                       <InfoRow label="Client" icon={Icon.user} value={activeProject.client}/>
@@ -682,7 +751,6 @@ function AdminApp({projects,setProjects}){
                       <InfoRow label="Updates" value={`${activeProject.updates.length} posted`}/>
                       <InfoRow label="Completed" value={`${activeProject.updates.filter(u=>u.status==="completed").length} done`} last/>
                     </div>
-
                     <div style={{background:"rgba(232,85,85,0.04)",border:"1px solid rgba(232,85,85,0.15)",borderRadius:14,padding:16}}>
                       <div style={{fontSize:"0.69rem",fontWeight:700,color:"#e85555",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>{Icon.warning} Danger Zone</div>
                       <div style={{fontSize:"0.78rem",color:"#6b6b72",marginBottom:12,lineHeight:1.5}}>Permanently delete this project and all its updates.</div>
@@ -696,7 +764,7 @@ function AdminApp({projects,setProjects}){
             </div>
           )}
 
-          {/* CLIENT VIEW (preview inside admin) */}
+          {/* CLIENT VIEW PREVIEW */}
           {page==="client"&&activeProject&&(
             <div style={{animation:"fadeIn 0.4s ease"}}>
               <Topbar title="Client View Preview" subtitle="This is exactly what your client sees" onMenu={()=>setSidebarOpen(true)}>
@@ -725,7 +793,7 @@ function AdminApp({projects,setProjects}){
           </Field>
           <Field label="Accent Color">
             <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap",paddingTop:4}}>
-              {COLORS.map(c=><div key={c} onClick={()=>setPm(p=>({...p,color:c}))} style={{width:22,height:22,borderRadius:"50%",background:c,cursor:"pointer",border:`2px solid ${pm.color===c?"#fff":"transparent"}`,transform:pm.color===c?"scale(1.25)":"scale(1)",transition:"all 0.15s",boxShadow:pm.color===c?`0 0 10px ${c}88`:""}}/>)}
+              {COLORS.map(c=><div key={c} onClick={()=>setPm(p=>({...p,color:c}))} style={{width:22,height:22,borderRadius:"50%",background:c,cursor:"pointer",border:`2px solid ${pm.color===c?"#fff":"transparent"}`,transform:pm.color===c?"scale(1.25)":"scale(1)",transition:"all 0.15s"}}/>)}
             </div>
           </Field>
         </div>
@@ -733,10 +801,10 @@ function AdminApp({projects,setProjects}){
           <Field label="Start Date"><input style={INP} type="date" value={pm.start} onChange={e=>setPm(p=>({...p,start:e.target.value}))}/></Field>
           <Field label="Deadline"><input style={INP} type="date" value={pm.deadline} onChange={e=>setPm(p=>({...p,deadline:e.target.value}))}/></Field>
         </div>
-        <Field label="Client Email" hint="For reference only"><input style={INP} type="email" value={pm.email} onChange={e=>setPm(p=>({...p,email:e.target.value}))} placeholder="client@example.com"/></Field>
+        <Field label="Client Email"><input style={INP} type="email" value={pm.email} onChange={e=>setPm(p=>({...p,email:e.target.value}))} placeholder="client@example.com"/></Field>
         <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:6}}>
-          <Btn onClick={()=>setProjModal(false)} variant="ghost">Cancel</Btn>
-          <Btn onClick={saveProject}>Save Project</Btn>
+          <Btn onClick={()=>setProjModal(false)} variant="ghost" disabled={saving}>Cancel</Btn>
+          <Btn onClick={saveProject} disabled={saving}>{saving?"Saving...":"Save Project"}</Btn>
         </div>
       </Modal>
 
@@ -756,7 +824,7 @@ function AdminApp({projects,setProjects}){
         </div>
         <Field label="File / Link" hint="Optional — Figma, Google Drive, etc."><input style={INP} type="url" value={um.link} onChange={e=>setUm(u=>({...u,link:e.target.value}))} placeholder="https://figma.com/…"/></Field>
         <Field label="Tags" hint="Press Enter after each tag">
-          <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"7px 8px",border:"1px solid #2a2a2e",borderRadius:9,background:"#1a1a1d",cursor:"text",minHeight:44,alignItems:"center"}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"7px 8px",border:"1px solid #2a2a2e",borderRadius:9,background:"#1a1a1d",minHeight:44,alignItems:"center"}}>
             {um.tags.map((t,i)=>(
               <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,background:"#252528",border:"1px solid #2a2a2e",borderRadius:5,padding:"2px 8px",fontSize:"0.72rem",color:"#9b9ba3"}}>
                 {t}<button onClick={()=>removeTag(i)} style={{background:"none",border:"none",color:"#4a4a55",cursor:"pointer",display:"flex",alignItems:"center",padding:0}}>{Icon.x}</button>
@@ -766,8 +834,8 @@ function AdminApp({projects,setProjects}){
           </div>
         </Field>
         <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:6}}>
-          <Btn onClick={()=>setUpdModal(false)} variant="ghost">Cancel</Btn>
-          <Btn onClick={saveUpdate}>Save Update</Btn>
+          <Btn onClick={()=>setUpdModal(false)} variant="ghost" disabled={saving}>Cancel</Btn>
+          <Btn onClick={saveUpdate} disabled={saving}>{saving?"Saving...":"Save Update"}</Btn>
         </div>
       </Modal>
 
